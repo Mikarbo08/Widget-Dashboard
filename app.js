@@ -75,9 +75,45 @@ const renderStationName = (station) => {
 // déjà implémenté. Si vous jetez un coup d'oeil à votre console vous verrez un objet
 // contenant votre position.
 const getDashboardInformation = () => {
-  getPosition().then((res) => {
-    console.log(res);
-  });
+  getPosition()
+    .then((res) => {
+      console.log(res);
+      const transportURL = `http://transport.opendata.ch/v1/locations?x=${res.lat}&y=${res.long}&type=station`
+      const weatherURL = `https://api.open-meteo.com/v1/forecast?latitude=${res.lat}&longitude=${res.long}&daily=apparent_temperature_max,apparent_temperature_min&timezone=auto`
+      return Promise.all([
+        fetch(transportURL).then(Response => Response.json()),
+        fetch(weatherURL).then(Response => Response.json())
+      ])
+    })
+    .then((data) => {
+      const [transport, weather] = data;
+
+      console.log(weather);
+      renderWeather(weather.daily.apparent_temperature_min[0], weather.daily.apparent_temperature_max[0]);
+
+
+      console.log(transport);
+      const station = transport.stations.filter((station) => station.icon === "train")[0];
+      if (station) {
+        fetch(`https:transport.opendata.ch/v1/stationboard?station=${station}&limit=6`)
+          .then(response => response.json())
+      }
+      else {
+        throw new Error("No trains nearby")
+      }
+    })
+    .then((data) => {
+      const stationData = parseStationData(data);
+      renderStationName(stationData.station);
+      stationData.departures.forEach(element => {
+        renderTrain(element);
+      });
+    })
+    .catch((err) => {
+      console.error(err.message);
+      const station = document.querySelector(".departures p")
+      station.textContent = `😢${err.message}`;
+    })
 };
 
 getDashboardInformation();
